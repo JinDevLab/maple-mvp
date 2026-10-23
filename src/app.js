@@ -22,7 +22,7 @@ function renderItems() {
   $('#add-item').disabled = state.items.length >= 100;
   $('#items').innerHTML = state.items.map((item, index) => `
     <article class="item" data-id="${escape(item.id)}">
-      <div class="item-head"><span class="item-icon">${['✦', '◈', '✂'][index % 3]}</span><label class="sr-only" for="name-${escape(item.id)}">아이템 ${index + 1} 이름</label><input class="item-name" id="name-${escape(item.id)}" data-field="name" value="${escape(item.name)}" maxlength="60" placeholder="아이템 이름"><button class="delete-button" data-delete="${escape(item.id)}" aria-label="${escape(item.name || '아이템')} 삭제" title="아이템 삭제">×</button></div>
+      <div class="item-head"><span class="item-index">${String(index + 1).padStart(2, '0')}</span><label class="sr-only" for="name-${escape(item.id)}">아이템 ${index + 1} 이름</label><input class="item-name" id="name-${escape(item.id)}" data-field="name" value="${escape(item.name)}" maxlength="60" placeholder="아이템 이름"><button class="delete-button" data-delete="${escape(item.id)}" aria-label="${escape(item.name || '아이템')} 삭제" title="아이템 삭제">×</button></div>
       <div class="item-fields"><label>1개 구매가<div class="input-unit"><input data-field="cash" aria-label="아이템 ${index + 1} 구매가" type="number" min="1" max="1000000000000" step="1" value="${escape(item.cash)}"><span>캐시</span></div></label><label>1개 경매장 판매가<div class="input-unit"><input data-field="price" aria-label="아이템 ${index + 1} 판매가" type="number" min="0" max="10000" step="any" value="${escape(item.price)}"><span>억 메소</span></div></label></div>
       <div class="item-detail" data-detail="${escape(item.id)}"></div>
     </article>`).join('') || '<div class="empty">등록된 아이템이 없습니다.<br>아이템을 추가하면 메소마켓과 바로 비교할 수 있어요.</div>';
@@ -55,11 +55,13 @@ function render() {
   const title = top === 0 ? '현재 예산으로 구매할 수 없어요.' : winners.length > 1 ? `${winners.length}개 방법의 결과가 같아요.` : `${escape(winner.name)}${winner.kind === 'item' ? ' 판매' : ''}가 유리해요.`;
   const excluded = state.items.length - result.items.length;
   $('#recommendation').innerHTML = `<h2>${title}</h2><p>${top === 0 ? '예산 또는 구매가를 조정해 주세요.' : alternative && diff > 0.01 ? `${escape(alternative.name)} 대비 <strong>${eok(diff)}억 메소${gain !== null ? ` (+${fmt(gain)}%)` : ''}</strong> 더 확보할 수 있어요.` : '아래에서 각 방법의 효율과 남는 재화를 확인하세요.'}</p><div class="hero-stats"><div><span>${isBudget ? '예산 내 예상 실수령' : '1만 캐시당 예상 실수령'}</span><strong>${eok(top)}<small>억 메소</small></strong></div><div><span>${isBudget ? '입력 예산' : '비교 기준'}</span><strong>${isBudget ? fmt(state.budget) : '10,000'}<small>캐시</small></strong></div></div>${excluded ? `<p class="error">입력이 완료되지 않은 아이템 ${excluded}개는 비교에서 제외했습니다.</p>` : ''}`;
-  $('#rankings').innerHTML = rows.map((row, index) => {
+  $('#rankings').innerHTML = `<table class="comparison-table"><caption class="sr-only">${isBudget ? '예산 내 실제 구매 결과' : '1만 캐시당 효율'} 순위</caption><thead><tr><th scope="col">순위</th><th scope="col">구매·판매 방법</th><th scope="col" class="numeric">실수령 / 억 메소</th><th scope="col" class="numeric">마켓 대비</th></tr></thead><tbody>${rows.map((row, index) => {
     const best = top > 0 && winners.includes(row);
-    const width = top ? Math.max(0, Math.min(100, row[metric] / top * 100)) : 0;
-    return `<article class="ranking ${best ? 'best' : ''}"><div class="rank-line"><span class="rank-number">${String(index + 1).padStart(2, '0')}</span><div class="rank-name"><strong>${escape(row.name)}</strong><span>${row.kind === 'market' ? '메포 → 메소 · 수수료 없음' : '캐시 아이템 판매 · 수수료 3%'} ${best ? '<b class="best-label">BEST</b>' : ''}</span></div><div class="rank-value"><strong>${eok(row[metric])}</strong><span>억 메소</span></div></div><div class="bar-track"><div class="bar" style="width:${width}%"></div></div>${isBudget ? `<div class="budget-details"><span>${row.kind === 'market' ? `패키지 ${fmt(row.count)}개 · ${fmt(row.lots)}회분 구매 단위` : `${fmt(row.count)}개 구매·판매`} · 사용 ${fmt(row.spent)}캐시</span><span>잔액 ${fmt(row.cashLeft)}캐시${row.kind === 'market' ? ` + ${fmt(row.pointsLeft)}메포` : ''}</span></div>` : ''}</article>`;
-  }).join('');
+    const relative = market[metric] > 0 ? (row[metric] / market[metric] - 1) * 100 : null;
+    const comparison = row.kind === 'market' ? '기준' : relative === null ? '—' : `${relative > 0 ? '+' : ''}${fmt(relative)}%`;
+    return `<tr class="${best ? 'best' : ''}"><td class="rank-number">${String(index + 1).padStart(2, '0')}</td><th scope="row"><span class="rank-name">${escape(row.name)}${best ? `<span class="best-label">${isBudget ? '최대 실수령' : '최고 효율'}</span>` : ''}</span><span class="route-note">${row.kind === 'market' ? '메포 → 메소 · 수수료 0%' : '경매장 판매 · 수수료 3%'}</span>${isBudget ? `<span class="budget-details">${row.kind === 'market' ? `패키지 ${fmt(row.count)}개 · ${fmt(row.lots)}회분 구매 단위` : `${fmt(row.count)}개 구매·판매`} · 사용 ${fmt(row.spent)}캐시<br>잔액 ${fmt(row.cashLeft)}캐시${row.kind === 'market' ? ` + ${fmt(row.pointsLeft)}메포` : ''}</span>` : ''}</th><td class="rank-value numeric">${eok(row[metric])}</td><td class="numeric relative ${relative > 0 ? 'positive' : relative < 0 ? 'negative' : ''}">${comparison}</td></tr>`;
+  }).join('')}</tbody></table>`;
+
 }
 document.addEventListener('input', event => {
   const input = event.target;
