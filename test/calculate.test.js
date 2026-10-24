@@ -119,3 +119,56 @@ test('normalized cash outcome always uses 10000 cash; old saved settings migrate
   assert.ok(r.rows.every(row=>row.money.cost===10000));
   assert.equal(restore(JSON.stringify({...old,cashRate:1800})).cashRate,1800);
 });
+
+test('reverse mode rounds up item count after auction fee and sorts by cost', () => {
+  const r = calculate({...defaults(), mode:'target', targetMeso:10, cashRate:1800});
+  const royal = r.items[0];
+  assert.equal(royal.count,10);
+  assert.equal(royal.spent,22000);
+  near(royal.total,10.185 * MESO);
+  near(royal.excess,0.185 * MESO);
+  assert.ok(r.rows.every((row,i) => i===0 || row.spent >= r.rows[i-1].spent));
+  for (const row of r.items) assert.ok((row.count-1) * row.net < r.target);
+  near(royal.money.profit,10.185 * 1800 - 22000);
+});
+test('reverse market rounds lots then packages, preserving unused points', () => {
+  const r = calculate({...defaults(),mode:'target',targetMeso:10.5});
+  assert.equal(r.market.lots,11);
+  assert.equal(r.market.count,3);
+  assert.equal(r.market.spent,30000);
+  assert.equal(r.market.total,11 * MESO);
+  assert.equal(r.market.pointsLeft,5800);
+  assert.equal(r.market.excess,0.5 * MESO);
+});
+test('reverse exact boundaries do not buy an extra item or package', () => {
+  const r = calculate({...defaults(),mode:'target',targetMeso:10.185,packagePoints:11000});
+  assert.equal(r.items[0].count,10);
+  const exact = calculate({...defaults(),mode:'target',targetMeso:10,packagePoints:11000});
+  assert.equal(exact.market.count,2);
+  assert.equal(exact.market.pointsLeft,0);
+});
+test('reverse accepts fractional lots, ignores the cash budget, rejects invalid target', () => {
+  const r = calculate({...defaults(),mode:'target',budget:'',targetMeso:0.15,marketUnit:0.1});
+  assert.deepEqual(r.errors,[]);
+  assert.equal(r.market.lots,2);
+  near(r.market.total,0.2 * MESO);
+  for(const target of [0,-1,'',NaN,Infinity,10001]) assert.ok(calculate({...defaults(),mode:'target',targetMeso:target}).errors.includes('targetMeso'));
+});
+test('reverse zero-sale and unsafe-count routes are excluded without Infinity in results', () => {
+  const state = {...defaults(),mode:'target',targetMeso:10};
+  state.items[0].price=0;
+  state.items[1].price=1e-20;
+  const r = calculate(state);
+  assert.equal(r.unavailable.length,2);
+  assert.ok(r.rows.every(row=>Number.isFinite(row.total) && Number.isSafeInteger(row.spent)));
+});
+test('reverse ties and saved settings survive restoration', () => {
+  const state = {...defaults(),mode:'target',targetMeso:10,items:[{id:'x',name:'동률',cash:30000,price:10/0.97}]};
+  const r = calculate(state);
+  assert.equal(r.winners.length,2);
+  const saved=restore(JSON.stringify(state));
+  assert.equal(saved.mode,'target');
+  assert.equal(saved.targetMeso,10);
+  const old=defaults(); delete old.targetMeso;
+  assert.equal(restore(JSON.stringify(old)).targetMeso,10);
+});

@@ -1191,3 +1191,10 @@ footer {
 .comparison-table tr:has(+ .profit-row) > th { border-bottom: 0; padding-bottom: 4px; }
 .comparison-table .profit-row > td { padding: 0 0 14px 0; }
 .comparison-table .profit-row .money-summary { margin-top: 0; font-size: 11px; }
+
+.segmented { flex-wrap: wrap; }
+.rank-value { overflow-wrap: anywhere; }
+@media(max-width:760px) {
+  .comparison .section-heading { flex-direction: column; align-items: flex-start; }
+  .segmented { gap: 16px; }
+}
