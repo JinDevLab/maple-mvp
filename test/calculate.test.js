@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculate, defaults as presets, restore, MESO, cashOutcome, addBudget } from '../src/calculate.js';
 // Keep the original arithmetic examples independent of the editable default presets.
-const defaults = () => ({ ...presets(), items: [
+const defaults = () => ({ ...presets(), mode: 'efficiency', items: [
   { id: 'royal', name: '메이플 로얄 스타일', cash: 2200, price: 1.05 },
   { id: 'master', name: '프리미엄 마스터피스', cash: 1900, price: 0.95 },
   { id: 'scissors', name: '플래티넘 카르마의 가위', cash: 5900, price: 2.65 }
@@ -171,4 +171,19 @@ test('reverse ties and saved settings survive restoration', () => {
   assert.equal(saved.targetMeso,10);
   const old=defaults(); delete old.targetMeso;
   assert.equal(restore(JSON.stringify(old)).targetMeso,10);
+});
+
+
+test('cash mode starts with actual budget and ignores an inactive target', () => {
+  const state = {...presets(), targetMeso: ''};
+  assert.equal(state.mode, 'budget');
+  const result = calculate(state);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.metric, 'total');
+  assert.equal(result.market.total, 45 * MESO);
+  const saved = restore(JSON.stringify(state));
+  assert.equal(saved.mode, 'budget');
+  assert.equal(saved.targetMeso, '');
+  assert.ok(calculate({...saved, mode: 'target'}).errors.includes('targetMeso'));
+  assert.equal(restore(JSON.stringify({...state, mode: 'unknown'})).mode, 'budget');
 });

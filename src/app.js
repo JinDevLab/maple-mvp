@@ -36,6 +36,15 @@ function renderItems() {
 }
 function render() {
   const result = calculate(state);
+  const purchasing = state.mode === 'target';
+  document.querySelectorAll('[name="direction"]').forEach(input => { input.checked = input.value === (purchasing ? 'target' : 'cash'); });
+  $('#cash-inputs').hidden = purchasing;
+  $('#target-inputs').hidden = !purchasing;
+  $('#budget').disabled = purchasing;
+  $('#targetMeso').disabled = !purchasing;
+  $('#cash-views').hidden = purchasing;
+  $('#compare-title').textContent = purchasing ? '구매 방법별 필요 캐시' : '판매 방법별 메소 수령량';
+  $('#result-title').textContent = purchasing ? '구매 비교 결과' : '판매 비교 결과';
   document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === state.mode)));
   document.querySelectorAll('[data-setting]').forEach(input => input.setAttribute('aria-invalid', String(result.errors.includes(input.dataset.setting))));
   $('#mode-description').textContent = state.mode === 'target' ? `목표 ${fmt(Number(state.targetMeso) || 0)}억 메소 이상을 확보하는 최소 캐시 순서입니다. 아이템·패키지는 올림 구매합니다.` : state.mode === 'budget' ? `${fmt(Number(state.budget) || 0)}캐시 안에서 구매 가능한 수량으로 비교합니다. 잔액은 아래에 별도 표시합니다.` : '구매 단위와 잔액을 제외하고, 같은 1만 캐시의 메소 확보 효율을 비교합니다.';
@@ -86,12 +95,16 @@ function renderTarget(result) {
   $('#rankings').innerHTML = `<table class="comparison-table"><caption class="sr-only">목표 메소 달성 최소 캐시 순위</caption><thead><tr><th scope="col">순위</th><th scope="col">방법 · 구매 수량</th><th scope="col" class="numeric">필요 캐시 / 원</th><th scope="col" class="numeric">수령 / 억 메소</th></tr></thead><tbody>${rows.map((row,index) => `<tr class="${winners.includes(row) ? 'best' : ''}"><td class="rank-number">${index+1}</td><th scope="row"><span class="rank-name">${escape(row.name)}${winners.includes(row) ? '<span class="best-label">최소 캐시</span>' : ''}</span><span class="route-note">${row.kind === 'market' ? `패키지 ${fmt(row.count)}개 · 메소 ${fmt(row.lots)}단위 구매` : `${fmt(row.count)}개 구매·판매 · 수수료 3%`}</span><span class="budget-details">초과 ${eok(row.excess)}억 · ${cashValue(row.excess)}${row.kind === 'market' ? `<br>남는 메포 ${fmt(row.pointsLeft)}메포` : ''}<br>메소마켓 대비 비용 절감 ${savingText(row.cashSaving)}</span></th><td class="numeric rank-value">${fmt(row.spent)}<span class="cash-secondary">${fmt(row.spent)}원</span></td><td class="numeric relative">${eok(row.total)}<span class="cash-secondary">${cashValue(row.total)}</span></td></tr>${row.money ? `<tr class="profit-row"><td colspan="4">${moneyMarkup(row.money)}</td></tr>` : ''}`).join('')}</tbody></table>`;
 }
 
+document.addEventListener('change', event => {
+  if (event.target.name !== 'direction') return;
+  state.mode = event.target.value === 'target' ? 'target' : 'budget';
+  save(); render();
+});
+
 document.addEventListener('input', event => {
   const input = event.target;
   if (input.dataset.setting) {
     state[input.dataset.setting] = input.value === '' ? '' : input.valueAsNumber;
-    if (input.dataset.setting === 'targetMeso') state.mode = 'target';
-    if (input.dataset.setting === 'budget' && state.mode === 'target') state.mode = 'budget';
   }
   else if (input.dataset.field) {
     const item = state.items.find(x => x.id === input.closest('[data-id]').dataset.id);
@@ -103,8 +116,8 @@ document.addEventListener('input', event => {
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
-  if (button.dataset.budget) { state.budget = addBudget(state.budget, Number(button.dataset.budget)); if (state.mode === 'target') state.mode = 'budget'; renderSettings(); }
-  else if (button.id === 'clear-budget') { state.budget = 0; if (state.mode === 'target') state.mode = 'budget'; renderSettings(); }
+  if (button.dataset.budget) { state.budget = addBudget(state.budget, Number(button.dataset.budget)); renderSettings(); }
+  else if (button.id === 'clear-budget') { state.budget = 0; renderSettings(); }
   else if (button.dataset.mode) state.mode = button.dataset.mode;
   else if (button.dataset.delete) {
     const index = state.items.findIndex(x => x.id === button.dataset.delete);

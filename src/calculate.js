@@ -2,7 +2,7 @@ export const FEE = 0.03;
 export const MESO = 100_000_000;
 export const defaults = () => ({
   version: 1, budget: 100000, packageCash: 10000, packagePoints: 10000,
-  targetMeso: 10, cashRate: '', marketRate: 2200, marketUnit: 1, mode: 'efficiency',
+  targetMeso: 10, cashRate: '', marketRate: 2200, marketUnit: 1, mode: 'budget',
   items: [
     { id: 'royal', name: '메이플 로얄 스타일', cash: 2200, price: 1.15 },
     { id: 'master', name: '프리미엄 마스터피스', cash: 1900, price: 0.9 },
@@ -80,7 +80,7 @@ export function restore(raw) {
     for (const key of ['budget', 'packageCash', 'packagePoints', 'marketRate', 'marketUnit', 'cashRate', 'targetMeso']) {
       if (typeof value[key] === 'number' || value[key] === '') state[key] = value[key];
     }
-    state.mode = ['budget', 'target'].includes(value.mode) ? value.mode : 'efficiency';
+    state.mode = ['efficiency', 'budget', 'target'].includes(value.mode) ? value.mode : 'budget';
     state.items = value.items.filter(x => x && typeof x.name === 'string').map((item, i) => ({
       id: `saved-${i}`, name: item.name.slice(0, 60),
       cash: typeof item.cash === 'number' ? item.cash : '',
