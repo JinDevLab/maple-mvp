@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculate, defaults, restore, MESO } from '../src/calculate.js';
+import { calculate, defaults as presets, restore, MESO, cashOutcome, addBudget } from '../src/calculate.js';
+// Keep the original arithmetic examples independent of the editable default presets.
+const defaults = () => ({ ...presets(), items: [
+  { id: 'royal', name: '메이플 로얄 스타일', cash: 2200, price: 1.05 },
+  { id: 'master', name: '프리미엄 마스터피스', cash: 1900, price: 0.95 },
+  { id: 'scissors', name: '플래티넘 카르마의 가위', cash: 5900, price: 2.65 }
+] });
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.001, `${actual} != ${expected}`);
 test('example: 3% fee and fee-free market, normalized to 10,000 cash', () => {
   const r = calculate(defaults());
@@ -64,10 +70,52 @@ test('fractional market unit does not lose a lot at floating point boundary', ()
   assert.equal(r.market.total, 10 * MESO);
 });
 test('saved data: corrupt/version mismatch fallback, empty list and partial entries survive', () => {
-  assert.deepEqual(restore('{broken'), defaults());
-  assert.deepEqual(restore('{"version":2,"items":[]}'), defaults());
+  assert.deepEqual(restore('{broken'), presets());
+  assert.deepEqual(restore('{"version":2,"items":[]}'), presets());
   assert.deepEqual(restore(JSON.stringify({ ...defaults(), items: [] })).items, []);
   const state = restore(JSON.stringify({ ...defaults(), items: [{ name: '<img onerror=alert(1)>', cash: '', price: '' }] }));
   assert.equal(state.items[0].cash, '');
   assert.equal(calculate(state).rows.length, 1);
+});
+
+test('default presets match the seven supplied items', () => {
+  assert.deepEqual(presets().items.map(({cash, price}) => [cash, price]), [[2200,1.15],[1900,0.9],[5900,3.14],[25000,12.6],[33000,17.3],[54000,28],[3900,2]]);
+});
+test('budget buttons add repeatedly, handle empty input and respect the upper bound', () => {
+  assert.equal(addBudget(addBudget(100000, 10000), 10000), 120000);
+  assert.equal(addBudget('', 50000), 50000);
+  assert.equal(addBudget(999999999999, 1000000), 1e12);
+});
+test('cash sale losses, gains and exact break-even use the same meso rate', () => {
+  const loss = cashOutcome(5 * MESO, 10000, 1800);
+  assert.equal(loss.revenue, 9000);
+  assert.equal(loss.profit, -1000);
+  assert.equal(loss.percent, -10);
+  near(loss.mesoProfit, -1000 / 1800 * MESO);
+  assert.equal(cashOutcome(5 * MESO, 10000, 2200).profit, 1000);
+  assert.equal(cashOutcome(5 * MESO, 10000, 2000).profit, 0);
+});
+test('cash rate is optional; invalid values block calculation', () => {
+  assert.equal(calculate(defaults()).market.money, null);
+  for (const rate of [0, -1, Infinity, NaN, 0.5]) assert.ok(calculate({...defaults(),cashRate:rate}).errors.includes('cashRate'));
+  assert.equal(cashOutcome(0,0,1800).percent, null);
+});
+test('budget cash outcome uses spent cash; unspent cash and points are not sale proceeds', () => {
+  const r = calculate({...defaults(), mode:'budget', budget:101000, cashRate:1800});
+  assert.equal(r.market.money.cost,100000);
+  assert.equal(r.market.money.revenue,81000);
+  assert.equal(r.market.money.profit,-19000);
+  assert.equal(r.market.cashLeft,1000);
+  assert.equal(r.market.pointsLeft,1000);
+  assert.equal(r.items[0].money.cost,99000);
+  near(r.items[0].money.profit,45.8325 * 1800 - 99000);
+});
+test('normalized cash outcome always uses 10000 cash; old saved settings migrate safely', () => {
+  const old = defaults(); delete old.cashRate;
+  const restored = restore(JSON.stringify(old));
+  assert.equal(restored.cashRate,'');
+  assert.equal(restored.items[0].price,1.05);
+  const r = calculate({...restored,cashRate:1800});
+  assert.ok(r.rows.every(row=>row.money.cost===10000));
+  assert.equal(restore(JSON.stringify({...old,cashRate:1800})).cashRate,1800);
 });

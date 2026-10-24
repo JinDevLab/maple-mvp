@@ -2,11 +2,15 @@ export const FEE = 0.03;
 export const MESO = 100_000_000;
 export const defaults = () => ({
   version: 1, budget: 100000, packageCash: 10000, packagePoints: 10000,
-  marketRate: 2200, marketUnit: 1, mode: 'efficiency',
+  cashRate: '', marketRate: 2200, marketUnit: 1, mode: 'efficiency',
   items: [
-    { id: 'royal', name: '메이플 로얄 스타일', cash: 2200, price: 1.05 },
-    { id: 'master', name: '프리미엄 마스터피스', cash: 1900, price: 0.95 },
-    { id: 'scissors', name: '플래티넘 카르마의 가위', cash: 5900, price: 2.65 }
+    { id: 'royal', name: '메이플 로얄 스타일', cash: 2200, price: 1.15 },
+    { id: 'master', name: '프리미엄 마스터피스', cash: 1900, price: 0.9 },
+    { id: 'scissors', name: '플래티넘 카르마의 가위', cash: 5900, price: 3.14 },
+    { id: 'prism', name: '컬러링 프리즘 프로', cash: 25000, price: 12.6 },
+    { id: 'gift', name: '부티크 기프트', cash: 33000, price: 17.3 },
+    { id: 'berry', name: '원더베리', cash: 54000, price: 28 },
+    { id: 'luna', name: '루나 크리스탈', cash: 3900, price: 2 }
   ]
 });
 
@@ -16,6 +20,7 @@ export function validate(state) {
   for (const key of ['budget', 'packageCash', 'packagePoints', 'marketRate']) {
     if (!valid(state[key], key === 'budget') || !Number.isSafeInteger(state[key])) errors.push(key);
   }
+  if (state.cashRate !== '' && state.cashRate !== undefined && (!valid(state.cashRate) || !Number.isSafeInteger(state.cashRate))) errors.push('cashRate');
   if (!valid(state.marketUnit) || state.marketUnit > 10000 || state.marketUnit < 0.0001) errors.push('marketUnit');
   return errors;
 }
@@ -54,6 +59,10 @@ export function calculate(state) {
   });
   const metric = state.mode === 'budget' ? 'total' : 'efficiency';
   const rows = [market, ...items].sort((a, b) => b[metric] - a[metric]);
+  for (const row of rows) {
+    row.money = cashOutcome(row[metric], state.mode === 'budget' ? row.spent : 10000, state.cashRate);
+    row.marketDifference = row[metric] - market[metric];
+  }
   const top = rows[0][metric];
   const winners = rows.filter(row => Math.abs(row[metric] - top) <= Math.max(0.01, top * 1e-10));
   return { errors, market, items, rows, winners, metric };
@@ -65,7 +74,7 @@ export function restore(raw) {
     const value = JSON.parse(raw);
     if (!value || value.version !== 1 || !Array.isArray(value.items) || value.items.length > 100) return fallback;
     const state = { ...fallback };
-    for (const key of ['budget', 'packageCash', 'packagePoints', 'marketRate', 'marketUnit']) {
+    for (const key of ['budget', 'packageCash', 'packagePoints', 'marketRate', 'marketUnit', 'cashRate']) {
       if (typeof value[key] === 'number' || value[key] === '') state[key] = value[key];
     }
     state.mode = value.mode === 'budget' ? 'budget' : 'efficiency';
@@ -76,4 +85,17 @@ export function restore(raw) {
     }));
     return state;
   } catch { return fallback; }
+}
+
+export function cashOutcome(meso, cost, rate) {
+  if (!valid(rate)) return null;
+  const revenue = meso / MESO * rate;
+  const profit = revenue - cost;
+  return { revenue, cost, profit, mesoProfit: profit / rate * MESO,
+    percent: cost > 0 ? profit / cost * 100 : null };
+}
+
+export function addBudget(current, increment) {
+  const base = Number.isSafeInteger(current) && current >= 0 ? current : 0;
+  return Math.min(1e12, base + increment);
 }

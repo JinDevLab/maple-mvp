@@ -1175,3 +1175,19 @@ footer {
     scroll-behavior:auto;
   }
 }
+
+/* Cash valuation shares the result hierarchy in both themes. */
+.quick-values { display: grid; grid-template-columns: repeat(3, 1fr); }
+.money-summary { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; font-size: 11px; line-height: 1.9; font-weight: 400; }
+.money-summary strong { font-weight: 600; }
+.money-note { display: block; color: var(--muted); font-size: 10px; margin-top: 8px; }
+#recommendation > .money-summary, #recommendation > .money-note { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 12px; }
+.cash-secondary { display: block; font-size: 10px; font-weight: 400; letter-spacing: 0; line-height: 1.8; margin-top: 5px; overflow-wrap: anywhere; }
+.comparison-table .money-summary { font-size: 10px; }
+.item-detail .money-summary { width: 100%; margin-top: 2px; font-size: 10px; }
+@media(max-width:760px) { .comparison-table .money-summary { font-size: 9px; } .cash-secondary { font-size: 9px; } }
+
+.comparison-table tr:has(+ .profit-row) > td,
+.comparison-table tr:has(+ .profit-row) > th { border-bottom: 0; padding-bottom: 4px; }
+.comparison-table .profit-row > td { padding: 0 0 14px 0; }
+.comparison-table .profit-row .money-summary { margin-top: 0; font-size: 11px; }
